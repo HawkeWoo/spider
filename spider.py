@@ -5,10 +5,10 @@
 
 from bs4 import BeautifulSoup
 import urllib2
-import urllib
 import os
-import cookielib
+import io
 import proxy
+from PIL import Image
 
 
 headers = {  # 伪装为浏览器抓取
@@ -76,47 +76,44 @@ def get_img_dl_urls(img_url=""):
     return result
 
 
-def save_img(img_url="", file_name="", opener=None):
+def save_img(img_url="", file_name=""):
     print "downloading img: " + img_url
-    urllib2.install_opener(opener)
-    u = urllib2.urlopen(img_url)
-    data = u.read()
+    data = urllib2.urlopen(img_url).read()
+    # print data
+    # 判断图片是否完整
+    if not valid_image(data):
+        return
     with open(file_name, 'wb') as f:
         f.write(data)
+    return
 
 
-def set_cookie():
-    c = cookielib.LWPCookieJar()
-    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(c))
-    url_login = "https://pixabay.com/zh/accounts/login/"
-    value = {
-        'username': 'xxx',
-        'password': 'xxx'
-    }
-    post_info = urllib.urlencode(value)
-    request = urllib2.Request(url_login, post_info)
-    opener.open(request)
-    return opener
-
+def valid_image(buf):
+    try:
+        Image.open(io.BytesIO(buf)).verify()
+    except:
+        return False
+    return True
 
 
 if __name__ == "__main__":
-    #opener = set_cookie()
 
     file_dir = u".\image"
     url = "https://pixabay.com/zh/photos/?q=&image_type=&min_width=&min_height=&cat=people&pagi="
-    web_pages = get_web_pages(url, 25, 50)
-
+    web_pages = get_web_pages(url, 32, 50)
     for web_page in web_pages:
         print "visiting web:  " + web_page
         img_urls = get_img_urls(web_page)
         proxies = proxy.get_proxy()
+        index = 0
         for img_url in img_urls:
+            index += 1
+            if index % 3 == 0:
+                proxies = proxy.get_proxy()
             print "visiting image:  " + img_url
             img_dl_urls = get_img_dl_urls(img_url)
             opener = proxy.change_proxy(proxies)
-            print "opener: "
-            # opener = set_cookie()
+            urllib2.install_opener(opener)
             for img_dl_url in img_dl_urls:
                 file_name = os.path.join(file_dir, os.path.basename(img_dl_url))
-                save_img(img_dl_url, file_name, opener)
+                save_img(img_dl_url, file_name)
