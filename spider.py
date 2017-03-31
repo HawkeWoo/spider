@@ -8,7 +8,7 @@ import urllib2
 import urllib
 import os
 import cookielib
-import time
+import proxy
 
 
 headers = {  # 伪装为浏览器抓取
@@ -67,11 +67,12 @@ def get_img_dl_urls(img_url=""):
         little_tags = tag.find_all("input")
         flag = True
         for little_tag in little_tags:
-            if flag:
-                result.append(little_tag['value'])
-                flag = False
-            else:
-                result.append(url_head + little_tag['value'])
+            if os.path.splitext(little_tag['value'])[1] in ['.jpg']:
+                if flag:
+                    result.append(little_tag['value'])
+                    flag = False
+                else:
+                    result.append(url_head + little_tag['value'])
     return result
 
 
@@ -82,31 +83,40 @@ def save_img(img_url="", file_name="", opener=None):
     data = u.read()
     with open(file_name, 'wb') as f:
         f.write(data)
-    time.sleep(3)
 
 
-if __name__ == "__main__":
+def set_cookie():
     c = cookielib.LWPCookieJar()
     opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(c))
     url_login = "https://pixabay.com/zh/accounts/login/"
     value = {
-        'username': 'justfortest',
-        'password': 'haokun88'
+        'username': 'xxx',
+        'password': 'xxx'
     }
     post_info = urllib.urlencode(value)
     request = urllib2.Request(url_login, post_info)
-    html = opener.open(request).read()
+    opener.open(request)
+    return opener
 
-    file_dir = u"E:\爬虫\爬图片\data"
+
+
+if __name__ == "__main__":
+    #opener = set_cookie()
+
+    file_dir = u".\image"
     url = "https://pixabay.com/zh/photos/?q=&image_type=&min_width=&min_height=&cat=people&pagi="
-    web_pages = get_web_pages(url, 23, 40)
+    web_pages = get_web_pages(url, 25, 50)
 
     for web_page in web_pages:
         print "visiting web:  " + web_page
         img_urls = get_img_urls(web_page)
+        proxies = proxy.get_proxy()
         for img_url in img_urls:
             print "visiting image:  " + img_url
             img_dl_urls = get_img_dl_urls(img_url)
+            opener = proxy.change_proxy(proxies)
+            print "opener: "
+            # opener = set_cookie()
             for img_dl_url in img_dl_urls:
                 file_name = os.path.join(file_dir, os.path.basename(img_dl_url))
                 save_img(img_dl_url, file_name, opener)

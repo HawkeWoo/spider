@@ -3,6 +3,9 @@
 # @Time    : 2017/3/30 14:33
 # @File    : proxy.py
 
+import cookielib
+import urllib
+
 import urllib2
 import random
 from bs4 import BeautifulSoup
@@ -34,23 +37,50 @@ def get_proxy():
     return proxies
 
 
-def change_proxy(proxies=[]):
+# def change_proxy():
+#     '''
+#     更改当前使用的ip代理
+#     '''
+#     proxies = get_proxy()
+#     proxy = random.choice(proxies)
+#     if proxy:
+#         proxy_handle = urllib2.ProxyHandler({})
+#     else:
+#         proxy_handle = urllib2.ProxyHandler({'http': proxy})
+#     opener = urllib2.build_opener(proxy_handle)
+#     opener.addheaders = [('User-Agent', headers['User-Agent'])]
+#     urllib2.install_opener(opener)
+#     print 'ip: %s' % ('localhost' if proxy == None else proxy)
+
+
+def change_proxy():
     '''
     更改当前使用的ip代理
-    :param proxies: 代理ip列表池
-    :return:
     '''
+    proxies = get_proxy()
     proxy = random.choice(proxies)
     if proxy:
         proxy_handle = urllib2.ProxyHandler({})
     else:
         proxy_handle = urllib2.ProxyHandler({'http': proxy})
-    opener = urllib2.build_opener(proxy_handle)
+
+
+    c = cookielib.LWPCookieJar()
+    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(c), proxy_handle)
+    url_login = "https://pixabay.com/zh/accounts/login/"
+    value = {
+        'username': 'justfortest',
+        'password': 'haokun88'
+    }
+    post_info = urllib.urlencode(value)
+    request = urllib2.Request(url_login, post_info)
+
     opener.addheaders = [('User-Agent', headers['User-Agent'])]
+    opener.open(request)
     urllib2.install_opener(opener)
     print 'ip: %s' % ('localhost' if proxy == None else proxy)
+    return opener
 
 
 if __name__ == "__main__":
-    proxies = get_proxy()
-    change_proxy(proxies)
+    change_proxy()
