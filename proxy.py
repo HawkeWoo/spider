@@ -56,7 +56,6 @@ def change_proxy(proxies=[]):
     '''
     更改当前使用的ip代理
     '''
-
     # cookie
     cookie_file = './cookie.txt'
     cookie = cookielib.MozillaCookieJar(cookie_file)
@@ -93,7 +92,7 @@ def check_ip(proxy=''):
     opener = urllib2.build_opener(proxy_handler, urllib2.HTTPHandler)
     urllib2.install_opener(opener)
     try:
-        content = urllib2.urlopen("http://ip.catr.cn/", timeout=3)
+        content = urllib2.urlopen("http://ip.catr.cn/", timeout=3).read()
         soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
         ip = soup.find('span').a.string
         if ip == proxy.split(':')[0]:
