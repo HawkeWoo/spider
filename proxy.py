@@ -9,6 +9,8 @@ import urllib2
 import random
 import threading
 import time
+import Queue
+from concurrent.futures import ProcessPoolExecutor
 from bs4 import BeautifulSoup
 
 value = {
@@ -34,22 +36,18 @@ def get_proxy():
     :return: [ip:port]列表
     '''
     global proxy_pool
-    try:
-        # 试图获取西刺代理的 IP 列表
-        req = urllib2.Request(agent_url, headers=headers)
-        content = urllib2.urlopen(req).read()
-        soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
-        ip_tags = soup.find_all('tr', class_='odd')
-        for ip_info in ip_tags:
-            if ip_info.contents[11].string == "HTTP":
-                proxy = ip_info.contents[3].string + ':' + ip_info.contents[5].string
-                if check_ip(proxy) and proxy not in proxy_pool:
-                    mutex.acquire()
-                    proxy_pool.append(proxy)
-                    mutex.release()
-    except urllib2.URLError, e:
-        print e.reason
-        print('无法获取代理信息!')
+    # 试图获取西刺代理的 IP 列表
+    req = urllib2.Request(agent_url, headers=headers)
+    content = urllib2.urlopen(req).read()
+    soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
+    ip_tags = soup.find_all('tr', class_='odd')
+    for ip_info in ip_tags:
+        if ip_info.contents[11].string == "HTTP":
+            proxy = ip_info.contents[3].string + ':' + ip_info.contents[5].string
+            if check_ip(proxy) and proxy not in proxy_pool:
+                mutex.acquire()
+                proxy_pool.append(proxy)
+                mutex.release()
 
 
 def change_proxy(proxies=[]):
@@ -92,11 +90,13 @@ def check_ip(proxy=''):
     opener = urllib2.build_opener(proxy_handler, urllib2.HTTPHandler)
     urllib2.install_opener(opener)
     try:
-        content = urllib2.urlopen("http://ip.catr.cn/", timeout=3).read()
-        soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
-        ip = soup.find('span').a.string
-        if ip == proxy.split(':')[0]:
-            return True
+        content = urllib2.urlopen("http://ip.catr.cn/", timeout=3)
+        data = content.read()
+        soup = BeautifulSoup(data, 'html.parser', from_encoding='GB18030')
+        if soup.find('span'):
+            ip = soup.find('span').a.string
+            if ip == proxy.split(':')[0]:
+                return True
     except urllib2.HTTPError, e:
         print e.code
         print e.reason
@@ -152,10 +152,6 @@ def write_proxy(file_name):
 
 
 if __name__ == "__main__":
-    # while True:
-    #     t = threading.Thread()
-    #     t.setDaemon(True)
-    #     t.start()
     threads = []
     threads.append(threading.Thread(target=update_proxy_pool))
     threads.append(threading.Thread(target=check_proxy_pool))
