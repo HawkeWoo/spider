@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     file_dir = u".\image"
     url = "https://pixabay.com/zh/photos/?q=&image_type=&min_width=&min_height=&cat=people&pagi="
-    web_pages = get_web_pages(url, 32, 50)
+    web_pages = get_web_pages(url, 38, 50)
     for web_page in web_pages:
         print "visiting web:  " + web_page
         img_urls = get_img_urls(web_page)
