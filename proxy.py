@@ -3,27 +3,18 @@
 # @Time    : 2017/3/30 14:33
 # @File    : proxy.py
 
-import cookielib
 import urllib
 import urllib2
-import random
 import threading
 import socket
 import time
-import Queue
-import httplib
 from bs4 import BeautifulSoup
 
-value = {
-        'username': 'justfortest',
-        'password': 'xxx'
-    }
 headers = {  # 伪装为浏览器抓取
     'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'
     }
 
 agent_url = 'http://www.xicidaili.com/'
-login_url = "https://pixabay.com/zh/accounts/login/"
 test_ip_url = "http://ip.catr.cn/"
 
 # 锁
@@ -59,36 +50,6 @@ def get_proxy():
                     mutex.release()
 
 
-def change_proxy(proxies=[]):
-    '''
-    更改当前使用的ip代理
-    '''
-    # cookie
-    cookie_file = './cookie.txt'
-    cookie = cookielib.MozillaCookieJar(cookie_file)
-    cookie.save(ignore_discard=True, ignore_expires=True)
-
-    proxy = random.choice(proxies)
-    if proxy:
-        proxy_handler = urllib2.ProxyHandler({'http': "http://" + proxy})
-    else:
-        proxy_handler = urllib2.ProxyHandler({})
-    # 实例化一个opener
-    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie), proxy_handler)
-    # 将post数据进行编码
-    post_info = urllib.urlencode(value)
-    # 构造一个request对象
-    request = urllib2.Request(login_url, post_info)
-    # 添加header信息
-    opener.addheaders = [('User-Agent', headers['User-Agent'])]
-    # 利用opener打开请求
-    opener.open(request)
-    # 安装opener
-    # urllib2.install_opener(opener)
-    # urllib2.urlopen(request)
-    return opener
-
-
 def check_ip(proxy=''):
     '''
     检查代理ip是否可用
@@ -97,8 +58,11 @@ def check_ip(proxy=''):
     '''
     socket.setdefaulttimeout(3)
     try:
-        proxy_host = "http://" + proxy
-        proxy_temp = {"http": proxy_host}
+        if proxy:
+            proxy_host = "http://" + proxy
+            proxy_temp = {"http": proxy_host}
+        else:
+            proxy_temp = {}
         content = urllib.urlopen(test_ip_url, proxies=proxy_temp).read()
         soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
         if soup.find('span'):
@@ -158,11 +122,20 @@ def write_proxy(file_name):
             f.write('\n')
 
 
+# 初始化代理ip池
+def init_proxy_pool(file_name):
+    with open(file_name, 'r') as f:
+        for line in f.readlines():
+            proxy_pool.append(line.strip('\n'))
+    proxy_pool.append(None)
+
+
 if __name__ == "__main__":
+    init_proxy_pool(proxy_file)
+    # print proxy_pool
     threads = []
     threads.append(threading.Thread(target=update_proxy_pool))
     threads.append(threading.Thread(target=check_proxy_pool))
     for thread in threads:
         thread.start()
-    # get_proxy()
-    # print proxy_pool
+

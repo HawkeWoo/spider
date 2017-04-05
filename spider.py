@@ -4,16 +4,29 @@
 # @File    : spider.py
 
 from bs4 import BeautifulSoup
+from PIL import Image
+import threading
+import cookielib
 import urllib2
+import urllib
+import random
 import os
 import io
 import proxy
-from PIL import Image
 
 
 headers = {  # 伪装为浏览器抓取
         'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'
     }
+value = {
+        'username': 'justfortest',
+        'password': 'xxx'
+    }
+
+file_dir = u".\image"
+
+login_url = "https://pixabay.com/zh/accounts/login/"
+spider_url = "https://pixabay.com/zh/photos/?q=&image_type=&min_width=&min_height=&cat=people&pagi="
 
 
 def get_bs4_soup(website_url=""):
@@ -78,8 +91,8 @@ def get_img_dl_urls(img_url=""):
 
 def save_img(img_url="", file_name=""):
     print "downloading img: " + img_url
-    data = urllib2.urlopen(img_url).read()
-    # print data
+    url = urllib2.urlopen(img_url).geturl()
+    data = urllib2.urlopen(url).read()
     # 判断图片是否完整
     if not valid_image(data):
         return
@@ -96,24 +109,52 @@ def valid_image(buf):
     return True
 
 
-if __name__ == "__main__":
+def change_proxy(proxies=[]):
+    '''
+    更改当前使用的ip代理
+    '''
+    # cookie
+    cookie = cookielib.CookieJar()
+    if len(proxies) > 0:
+        proxy = random.choice(proxies)
+    else:
+        proxy = None
+    if proxy:
+        proxy_handler = urllib2.ProxyHandler({'http': "http://" + proxy})
+    else:
+        proxy_handler = urllib2.ProxyHandler({})
+    # 实例化一个opener
+    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie), proxy_handler)
+    # 将post数据进行编码
+    login_info = urllib.urlencode(value)
+    # 构造一个request对象
+    request = urllib2.Request(login_url, login_info)
+    # 添加header信息
+    opener.addheaders = [('User-Agent', headers['User-Agent'])]
+    # 利用opener打开请求
+    opener.open(request)
+    return opener
 
-    file_dir = u".\image"
-    url = "https://pixabay.com/zh/photos/?q=&image_type=&min_width=&min_height=&cat=people&pagi="
-    web_pages = get_web_pages(url, 38, 50)
+
+def main():
+    web_pages = get_web_pages(spider_url, 1, 10)
     for web_page in web_pages:
         print "visiting web:  " + web_page
         img_urls = get_img_urls(web_page)
-        proxies = proxy.get_proxy()
-        index = 0
         for img_url in img_urls:
-            index += 1
-            if index % 3 == 0:
-                proxies = proxy.get_proxy()
             print "visiting image:  " + img_url
             img_dl_urls = get_img_dl_urls(img_url)
-            opener = proxy.change_proxy(proxies)
-            urllib2.install_opener(opener)
             for img_dl_url in img_dl_urls:
+                urllib2.install_opener(change_proxy(proxy.proxy_pool))
                 file_name = os.path.join(file_dir, os.path.basename(img_dl_url))
                 save_img(img_dl_url, file_name)
+
+
+if __name__ == "__main__":
+    proxy.init_proxy_pool(proxy.proxy_file)
+    threads = []
+    threads.append(threading.Thread(target=proxy.update_proxy_pool))
+    threads.append(threading.Thread(target=proxy.check_proxy_pool))
+    threads.append(threading.Thread(target=main))
+    for thread in threads:
+        thread.start()
