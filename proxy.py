@@ -8,6 +8,7 @@ import urllib
 import urllib2
 import random
 import threading
+import socket
 import time
 import Queue
 import httplib
@@ -17,15 +18,15 @@ value = {
         'username': 'justfortest',
         'password': 'xxx'
     }
-# headers = {  # 伪装为浏览器抓取
-#     'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'
-#     }
-headers = {'User-Agent': 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)'}
+headers = {  # 伪装为浏览器抓取
+    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'
+    }
 
 agent_url = 'http://www.xicidaili.com/'
 login_url = "https://pixabay.com/zh/accounts/login/"
 test_ip_url = "http://ip.catr.cn/"
 
+# 锁
 mutex = threading.Lock()
 # 维护一个代理ip池
 proxy_pool = []
@@ -41,16 +42,21 @@ def get_proxy():
     global proxy_pool
     # 试图获取西刺代理的 IP 列表
     request = urllib2.Request(agent_url, headers=headers)
-    content = urllib2.urlopen(request).read()
-    soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
-    ip_tags = soup.find_all('tr', class_='odd')
-    for ip_info in ip_tags:
-        if ip_info.contents[11].string == "HTTP":
-            proxy = ip_info.contents[3].string + ':' + ip_info.contents[5].string
-            if check_ip(proxy) and proxy not in proxy_pool:
-                mutex.acquire()
-                proxy_pool.append(proxy)
-                mutex.release()
+    try:
+        content = urllib2.urlopen(request).read()
+    except:
+        print "无法获取代理信息！"
+        return
+    else:
+        soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
+        ip_tags = soup.find_all('tr', class_='odd')
+        for ip_info in ip_tags:
+            if ip_info.contents[11].string == "HTTP":
+                proxy = ip_info.contents[3].string + ':' + ip_info.contents[5].string
+                if check_ip(proxy) and proxy not in proxy_pool:
+                    mutex.acquire()
+                    proxy_pool.append(proxy)
+                    mutex.release()
 
 
 def change_proxy(proxies=[]):
@@ -89,28 +95,19 @@ def check_ip(proxy=''):
     :param proxy: 代理ip:端口
     :return: 可用则true，否则false
     '''
-    print proxy
-    proxy_handler = urllib2.ProxyHandler({"http": "http://" + proxy})
-    request = urllib2.Request(test_ip_url, headers=headers)
-    opener = urllib2.build_opener(proxy_handler, urllib2.HTTPHandler)
-    urllib2.install_opener(opener)
+    socket.setdefaulttimeout(3)
     try:
-        content = urllib2.urlopen(request).read()
-    except urllib2.HTTPError, e:
-        print e.code
-        print e.reason
+        proxy_host = "http://" + proxy
+        proxy_temp = {"http": proxy_host}
+        content = urllib.urlopen(test_ip_url, proxies=proxy_temp).read()
+        soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
+        if soup.find('span'):
+            ip = soup.find('span').a.string
+            if ip == proxy.split(':')[0]:
+                return True
+        return True
+    except Exception:
         return False
-    except urllib2.URLError, e:
-        print e
-        return False
-    except (IOError, httplib.HTTPException):
-        return False
-    soup = BeautifulSoup(content, 'html.parser', from_encoding='GB18030')
-    if soup.find('span'):
-        ip = soup.find('span').a.string
-        if ip == proxy.split(':')[0]:
-            return True
-    return False
 
 
 def check_proxy_pool():
@@ -120,13 +117,14 @@ def check_proxy_pool():
     '''
     global proxy_pool
     while True:
-        temp_proxy_pool = []
-        for proxy in proxy_pool:
-            if check_ip(proxy):
-                temp_proxy_pool.append(proxy)
-        mutex.acquire()
-        proxy_pool = temp_proxy_pool
-        mutex.release()
+        if len(proxy_pool) > 0:
+            temp_proxy_pool = []
+            for proxy in proxy_pool:
+                if check_ip(proxy):
+                    temp_proxy_pool.append(proxy)
+            mutex.acquire()
+            proxy_pool = temp_proxy_pool
+            mutex.release()
 
 
 def update_proxy_pool():
@@ -161,10 +159,10 @@ def write_proxy(file_name):
 
 
 if __name__ == "__main__":
-    # threads = []
-    # threads.append(threading.Thread(target=update_proxy_pool))
-    # threads.append(threading.Thread(target=check_proxy_pool))
-    # for thread in threads:
-    #     thread.start()
-    get_proxy()
-    print proxy_pool
+    threads = []
+    threads.append(threading.Thread(target=update_proxy_pool))
+    threads.append(threading.Thread(target=check_proxy_pool))
+    for thread in threads:
+        thread.start()
+    # get_proxy()
+    # print proxy_pool
